@@ -27,8 +27,28 @@ cd claude-code-starter-kit-python
 cp .env.example .env
 # edite .env com suas credenciais
 
-claude  # pronto — Claude Code já carrega todas as configurações
+pip install -r requirements.txt
+
+uvicorn src.api.main:app --reload
 ```
+
+Acesse em `http://localhost:8000/docs` para usar a interface Swagger UI.
+
+---
+
+## Endpoints
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/books?q={termo}` | Busca livros na Google Books API |
+| `GET` | `/books?q={termo}&page=2` | Paginação de resultados |
+
+**Interfaces de documentação:**
+
+| URL | Interface |
+|---|---|
+| `http://localhost:8000/docs` | Swagger UI — teste direto no navegador |
+| `http://localhost:8000/redoc` | ReDoc — documentação alternativa |
 
 ---
 
@@ -52,7 +72,8 @@ claude  # pronto — Claude Code já carrega todas as configurações
 ├── .env.example                       # template de variáveis de ambiente
 ├── src/
 │   └── api/
-│       └── example.py                 # exemplo de código para testar as regras
+│       ├── main.py                    # app FastAPI — endpoints e roteamento
+│       └── example.py                 # integração com Google Books API
 ├── tests/
 │   └── test_example.py                # exemplo de teste
 └── requirements.txt
@@ -94,8 +115,11 @@ sem configuração adicional após o setup inicial.
 **1. Variáveis de ambiente**
 
 Copie `.env.example` para `.env` e preencha:
+```
 ANTHROPIC_API_KEY=sk-ant-...
 GITHUB_TOKEN=ghp_...
+GOOGLE_BOOKS_API_KEY=AIza...
+```
 
 **2. GitHub Actions**
 
