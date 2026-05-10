@@ -40,7 +40,20 @@ jobs:
               env:
                 ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
               run: |
-                claude -p "Analise test-results.json e liste apenas falhas críticas" --output-format json
+                claude -p "
+                Leia o arquivo test-results.json e reporte os resultados seguindo este formato:
+
+                Para cada teste falhando:
+                - Nome do teste (nodeid completo)
+                - Erro conciso e linha relevante do traceback
+                - Sugestão concreta de correção
+
+                Ao final, mostre o resumo:
+                - Total passou / falhou
+                - Cobertura se disponível
+
+                Se todos passaram, diga apenas: 'All tests passed. Coverage: X%'
+                " --output-format json > test-analysis.json
 
             - name: Post review comment
               uses: actions/github-script@v7
@@ -54,3 +67,18 @@ jobs:
                         repo: context.repo.repo,
                         body: review.content[0].text
                     });
+
+            - name: Post test results comment
+              uses: actions/github-script@v7
+              with:
+                script: |
+                  const fs = require('fs');
+                  const analysis = JSON.parse(
+                    fs.readFileSync('test-analysis.json', 'utf8')
+                  );
+                  github.rest.issues.createComment({
+                    issue_number: context.issue.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body: analysis.content[0].text
+                  });
