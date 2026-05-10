@@ -1,0 +1,56 @@
+name: Claude Code Review
+on:
+  pull_request:
+    branches: [main]
+    
+jobs:
+    review:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Python
+              uses: actions/setup-python@v4
+              with:
+                python-version: '3.11'
+
+            - name: Install dependencies
+              run: |
+                python -m pip install --upgrade pip
+                pip install -r requirements.txt
+
+            - name: Install Claude Code Review dependencies
+              run: |
+                npm install -g @anthropic-ai/claude-code
+
+            - name: Run Code Review
+              env:
+                ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                git diff --name-only origin/main...HEAD | \
+                    xargs claude -p "/review" --output-format json > review-results.json
+
+            - name: Run Tests
+              run: |
+                pytest --json-report --json-report-file=test-results.json
+
+            - name: Analyze tests results
+              env:
+                ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+              run: |
+                claude -p "Analise test-results.json e liste apenas falhas críticas" --output-format json
+
+            - name: Post review comment
+              uses: actions/github-script@v7
+              with:
+                script: |
+                    const fs = require('fs');
+                    const review = JSON.parse(fs.readFileSync('review-results.json', 'utf8'));
+                    github.rest.issues.createComment({
+                        issue_number: context.issue.number,
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        body: review.content[0].text
+                    });
