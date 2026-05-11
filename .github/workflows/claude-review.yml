@@ -9,6 +9,8 @@ jobs:
         steps:
             - name: Checkout
               uses: actions/checkout@v4
+              with:
+                fetch-depth: 0 
 
             - name: Setup Python
               uses: actions/setup-python@v4
@@ -27,10 +29,29 @@ jobs:
             - name: Run Code Review
               env:
                 ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                git diff --name-only origin/main...HEAD | \
-                    xargs claude -p "/review" --output-format json > review-results.json
+                FILES=$(git diff --name-only origin/main...HEAD)
+                python -c "
+            
+                import anthropic, os, json
+
+                client = anthropic.Anthropic()
+                files = '''$FILES'''
+
+                response = client.messages.create(
+                    model='claude-haiku-4-5-20251001',
+                    max_tokens=2048,
+                    messages=[{
+                        'role': 'user',
+                        'content': f'Faça um code review dos arquivos alterados neste PR:\n{files}\n\nChecklist: segurança, type hints, qualidade, testes.'
+                    }]
+                )
+
+                result = {'review': response.content[0].text}
+                with open('review-results.json', 'w') as f:
+                    json.dump(result, f)
+                print(result['review'])
+                "
 
             - name: Run Tests
               run: |
@@ -40,45 +61,49 @@ jobs:
               env:
                 ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
               run: |
-                claude -p "
-                Leia o arquivo test-results.json e reporte os resultados seguindo este formato:
+                python -c "
+                import anthropic, json
 
-                Para cada teste falhando:
-                - Nome do teste (nodeid completo)
-                - Erro conciso e linha relevante do traceback
-                - Sugestão concreta de correção
+                client = anthropic.Anthropic()
 
-                Ao final, mostre o resumo:
-                - Total passou / falhou
-                - Cobertura se disponível
+                with open('test-results.json') as f:
+                    tests = json.load(f)
 
-                Se todos passaram, diga apenas: 'All tests passed. Coverage: X%'
-                " --output-format json > test-analysis.json
+                response = client.messages.create(
+                    model='claude-haiku-4-5-20251001',
+                    max_tokens=1024,
+                    messages=[{
+                        'role': 'user',
+                        'content': f'Analise estes resultados de teste e reporte apenas falhas com sugestão de correção:\n{json.dumps(tests)}'
+                    }]
+                )
 
+                result = {'analysis': response.content[0].text}
+                with open('test-analysis.json', 'w') as f:
+                    json.dump(result, f)
+                "
             - name: Post review comment
               uses: actions/github-script@v7
               with:
                 script: |
-                    const fs = require('fs');
-                    const review = JSON.parse(fs.readFileSync('review-results.json', 'utf8'));
-                    github.rest.issues.createComment({
-                        issue_number: context.issue.number,
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        body: review.content[0].text
-                    });
+                  const fs = require('fs');
+                  const data = JSON.parse(fs.readFileSync('review-results.json', 'utf8'));
+                  github.rest.issues.createComment({
+                    issue_number: context.issue.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body: data.review
+                  });
 
             - name: Post test results comment
               uses: actions/github-script@v7
               with:
                 script: |
                   const fs = require('fs');
-                  const analysis = JSON.parse(
-                    fs.readFileSync('test-analysis.json', 'utf8')
-                  );
+                  const data = JSON.parse(fs.readFileSync('test-analysis.json', 'utf8'));
                   github.rest.issues.createComment({
                     issue_number: context.issue.number,
                     owner: context.repo.owner,
                     repo: context.repo.repo,
-                    body: analysis.content[0].text
+                    body: data.analysis
                   });
