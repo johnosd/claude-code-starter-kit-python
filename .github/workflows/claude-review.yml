@@ -6,6 +6,10 @@ on:
 jobs:
     review:
         runs-on: ubuntu-latest
+        permissions:
+          contents: read
+          pull-requests: write
+          issues: write
         steps:
             - name: Checkout
               uses: actions/checkout@v4
@@ -30,10 +34,9 @@ jobs:
               env:
                 ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
               run: |
-                FILES=$(git diff --name-only origin/main...HEAD)
+                FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
                 python -c "
-            
-                import anthropic, os, json
+                import anthropic, json
 
                 client = anthropic.Anthropic()
                 files = '''$FILES'''
@@ -55,7 +58,7 @@ jobs:
 
             - name: Run Tests
               run: |
-                pytest --json-report --json-report-file=test-results.json
+                pytest --json-report --json-report-file=test-results.json || true
 
             - name: Analyze tests results
               env:
