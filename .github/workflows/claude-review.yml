@@ -54,7 +54,7 @@ jobs:
 
             - name: Run Tests
               run: |
-                pytest --json-report --json-report-file=test-results.json
+                pytest --json-report --json-report-file=test-results.json || true
 
             - name: Analyze tests results
               env:
