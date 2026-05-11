@@ -101,6 +101,69 @@ sem configuração adicional após o setup inicial.
 
 ---
 
+## Exemplo de comment no PR
+
+Ao abrir um pull request, dois comments são postados automaticamente.
+
+**Comment 1 — Code Review**
+
+> ### Code Review
+>
+> #### ✅ Pontos positivos
+> - Type hints presentes em todas as funções públicas
+> - Separação clara entre roteamento (`main.py`) e integração externa (`example.py`)
+> - Uso correto de `HTTPException` para erros 404 e 500
+>
+> #### ⚠️ Atenção
+>
+> **`src/api/example.py:34` — Sem timeout na chamada HTTP**
+> A chamada para a Google Books API não define timeout. Uma lentidão na API externa
+> pode travar o worker indefinidamente.
+> ```python
+> # antes
+> response = requests.get(url, params=params)
+>
+> # depois
+> response = requests.get(url, params=params, timeout=10)
+> ```
+>
+> **`src/api/main.py:18` — Parâmetro `q` aceita string vazia**
+> Um `q=""` resulta em chamada desnecessária à API externa.
+> Adicione validação mínima via Pydantic (`min_length=1`).
+>
+> #### 🔒 Segurança
+> - `GOOGLE_BOOKS_API_KEY` lida via variável de ambiente — correto, sem hardcode
+> - Nenhuma rota expõe dados sensíveis do servidor
+>
+> #### 📋 Checklist
+> - [x] Type hints em todas as funções públicas
+> - [x] Tratamento de erros com códigos HTTP apropriados
+> - [ ] Timeout em chamadas HTTP externas
+> - [ ] Validação de entrada no parâmetro `q`
+
+**Comment 2 — Análise de Testes**
+
+> ### Análise de Testes
+>
+> **2 testes passaram, 1 falhou.**
+>
+> #### ❌ Falha: `test_search_returns_empty_list_for_unknown_term`
+>
+> O teste espera `[]` quando a API não encontra resultados, mas a implementação
+> retorna `{"items": []}` sem normalizar a resposta.
+>
+> **Sugestão de correção:**
+> ```python
+> # src/api/example.py — normalize antes de retornar
+> items = data.get("items", [])
+> return [parse_book(item) for item in items]
+> ```
+>
+> Ajuste o mock no teste para refletir a estrutura real da resposta da API,
+> ou normalize a resposta na camada de serviço.
+
+---
+
 ## Pré-requisitos
 
 - Claude Code instalado (`npm install -g @anthropic-ai/claude-code`)
